@@ -1,0 +1,93 @@
+# Python environment
+.venv/
+venv/
+env/
+ENV/
+venv.bak/
+env.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.env/
+.venv/
+env/
+ENV/
+
+# IDE / editor folders
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+*.manifest
+*.spec
+
+# Installer logs and backup
+pip-log.txt
+pip-delete-this-directory.txt
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files (avoid committing raw data)
+*.csv
+*.xlsx
+*.pbix
+*.pptx
+*.pdf
+
+# Generated output
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.html
+*.css
+*.js
+
+# Streamlit specific
+.streamlit/
+
+# Test artifacts
+.coverage
+htmlcov/
+*.cover
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sensitive files (never commit)
+.env
+*.env
+secrets.json
+config.json
+InitialPrompt.md
