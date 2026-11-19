@@ -72,6 +72,10 @@ Thumbs.db
 *.css
 *.js
 
+# Approved exception (SDD-PBI §2.2): Power BI dashboard screenshots are
+# deliverable evidence and must be committed. All other images stay ignored.
+!app/assets/power_bi/*.png
+
 # Streamlit specific
 .streamlit/
 

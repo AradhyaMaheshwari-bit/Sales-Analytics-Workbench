@@ -1,0 +1,28 @@
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "TID"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501", "TID251"]
+# Presentation layers may legitimately import Streamlit (TID251 = banned-api).
+"app/main.py" = ["TID251"]
+"app/pages/**" = ["TID251"]
+"app/components/**" = ["TID251"]
+"app/utils/**" = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"streamlit".msg = "Presentation-only dependency: Streamlit must not be imported in services, models or database layers."
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.black]
+line-length = 88
+target-version = ["py314"]
+extend-exclude = "(\\.venv|data|reports)"
