@@ -55,9 +55,49 @@ Smoke test coverage (all verified passing):
    `services/`, `models/`, `database/` finds zero Streamlit imports.
 6. `test_approved_paths_exist` — `main.py` and all five page scripts exist.
 
-Environment verified unchanged: Python 3.14.6; no runtime package upgraded;
-ruff 0.17.5 and black 26.10.1 installed into `.venv` only.
+## [0.2.0] — 2026-11-19
 
-### Git status
-- Nothing staged; nothing committed; nothing pushed.
-- Proceeding to the ten-step Git checkpoint for explicit authorization.
+### Increment 1B — Ingestion, Schema Mapping, and Data Profiling
+
+#### Added
+- `app/models/dataset_schema.py` — canonical 12-column schema, expected dtypes,
+  synonym mapping dictionary (FR-CC-02), `SchemaReport` dataclass,
+  `map_columns()`, `validate_dataframe_schema()`, and non-mutating `apply_column_mapping()`.
+- `app/models/validation_models.py` — typed data contracts: `ProfilingMetrics`,
+  `ColumnProfile`, `ValidationSummary`, `RuleCheckResult`, `StatResult`,
+  `CleaningLog`, `DataLoadResult`.
+- `app/services/data_loader.py` — `DataLoader` service with pre-parse file validation
+  (50 MB limit, `.csv`/`.xlsx` extension check), multi-encoding fallback parsing
+  (`utf-8`, `utf-8-sig`, `latin1`, `cp1252`), openpyxl Excel parser, malformed CSV
+  resilience, Scenario B bundled dataset loader with graceful absence handling,
+  and DataFrame immutability guarantees.
+- `app/services/profiler.py` — `Profiler` service computing dimensions, memory usage,
+  missing value rates, duplicate rows, summary statistics, and automated type anomaly
+  detection (numeric and datetime pattern heuristics for object columns).
+- `tests/unit/test_data_loading.py` — 6 unit tests covering valid CSV ingestion,
+  extension rejection, 50 MB boundary rejection, empty file handling, malformed CSV
+  resilience, and DataFrame non-mutation.
+- `tests/unit/test_schema.py` — 3 unit tests covering exact schema matching,
+  case/spacing/synonym normalization, and non-mutating column renaming.
+- `tests/unit/test_profiler.py` — 3 unit tests covering profiling metric calculations
+  against a deterministic fixture, edge cases (single row, all-null column), and
+  DataFrame non-mutation.
+
+#### Changed
+- `app/pages/01_data_immersion.py` — upgraded from stub to complete Increment 1B UI:
+  file uploader tab, Scenario B bundled dataset tab, preview table with configurable
+  row slider (5–100 rows), KPI summary cards (rows, columns, memory, missing cells,
+  duplicate rows), detailed column profiling table, and data type anomaly alert banners.
+
+### Verification (Increment 1B)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests` | ✅ 23 files already formatted |
+| Format (black) | `black --check app tests` | ✅ 18 files left unchanged |
+| Tests | `pytest tests/unit/ -v` | ✅ 18 passed (6 smoke + 6 loading + 3 schema + 3 profiler) |
+
+Architectural purity:
+- Zero Streamlit imports in `app/services/`, `app/models/`, `app/database/` (verified via AST test).
+- Pure function / service isolation: `raw_df` immutability verified across all loader and profiler operations.
