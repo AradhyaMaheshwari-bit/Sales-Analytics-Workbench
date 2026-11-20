@@ -55,9 +55,102 @@ Smoke test coverage (all verified passing):
    `services/`, `models/`, `database/` finds zero Streamlit imports.
 6. `test_approved_paths_exist` — `main.py` and all five page scripts exist.
 
+## [0.3.0] — 2026-11-19
+
+### Increment 1C — Data Cleaning and Module 1 Completion
+
+#### Added
+- `app/services/cleaner.py` — non-mutating cleaning pipeline implementing:
+  - Missing-value strategies: drop rows, fill mean/median/mode, or leave untouched.
+  - Duplicate removal with exact row count reporting.
+  - Type coercion (Quantity → int64, Unit_Price → float64, etc.).
+  - Date normalisation: valid dates → `YYYY-MM-DD` strings; unparseable → NULL; rows preserved; unparseable count reported (SQL Query 5 protection).
+- `app/services/validator.py` — business rule validation for FR-09:
+  - Quantity > 0, Unit_Price > 0, Total_Sales ≈ Quantity × Unit_Price (within rounding tolerance).
+  - Configurable per-rule enable/disable; pass/fail counts; per-row failure details.
+- `app/services/report_generator.py` — FR-10 & FR-17 export service:
+  - Cleaned CSV/XLSX export with timestamp/`_cleaned` filename suffix.
+  - Multi-sheet Excel report (Summary + Statistics sheets; Query Results sheet deferred to Increment 3).
+- `app/database/db_manager.py` — in-memory SQLite lifecycle manager (FR-15):
+  - Per-session `:memory:` connection; `sales` table with 12 columns.
+  - Rebuild on dataset changes; NULL dates survive ingestion; no external dependencies.
+- `scripts/generate_demo_data.py` — deterministic synthetic demo dataset (FR-CC-01, D-1):
+  - Fixed seed → identical output; 12-column canonical schema.
+  - `Total_Sales == Quantity × Unit_Price` within rounding; Gender ∈ {Male, Female}.
+  - Plausible date range; 60 rows; saved to `data/raw/internship_dataset.xlsx` (Git-ignored).
+- `tests/unit/test_cleaning.py` — 10 unit tests covering missing-value strategies, duplicate removal, date normalisation, and non-mutation contracts.
+- `tests/unit/test_validator.py` — 10 unit tests covering FR-09 rules (quantity, price, total-sales mismatches), tolerance bands, and missing column handling.
+- `tests/unit/test_db_manager.py` — 8 unit tests covering ingestion, NULL dates, connection rebuild, dataset replacement, and schema mapping.
+- `tests/unit/test_report_generator.py` — 14 unit tests covering CSV/XLSX exports, Summary + Statistics sheets; Query Results sheet absence verified.
+- `tests/unit/test_demo_data.py` — 8 unit tests covering deterministic generation, 12-column schema, business constraints, and Git-ignored output.
+
+#### Changed
+- `app/pages/01_data_immersion.py` — upgraded from Increment 1B stub to complete Increment 1C UI:
+  - Preview tab: source selection (upload / Scenario B) + dataset preview + column mapping.
+  - Profiling tab: comprehensive metrics & column statistics.
+  - Cleaning tab: configurable missing-value/duplication/type/date cleaning; cleaning-history stack; undo/reset controls.
+  - Validation & Export tab: rule validation summary + cleaned CSV/XLSX export + Excel report (Summary + Statistics).
+
+### Verification (Increment 1C)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests scripts` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests scripts` | ✅ 33 files already formatted |
+| Format (black) | `black --check app tests scripts` | ✅ 25 files left unchanged |
+| Tests | `pytest tests/unit/ -q` | ✅ 64 passed (18 from 1A/1B + 46 new unit tests across 5 test suites) |
+
+Architectural purity:
+- Zero Streamlit imports in `app/services/`, `app/models/`, `app/database/` (verified via AST test).
+- Pure function / service isolation: `raw_df` immutability verified across all loader, profiler, cleaner, validator, and report_generator operations.
+- Deterministic synthetic data generation with fixed seed and enforced schema.
+
 ## [0.2.0] — 2026-11-19
 
 ### Increment 1B — Ingestion, Schema Mapping, and Data Profiling
+
+#### Added
+- `app/models/dataset_schema.py` — canonical 12-column schema, expected dtypes,
+  synonym mapping dictionary (FR-CC-02), `SchemaReport` dataclass,
+  `map_columns()`, `validate_dataframe_schema()`, and non-mutating `apply_column_mapping()`.
+- `app/models/validation_models.py` — typed data contracts: `ProfilingMetrics`,
+  `ColumnProfile`, `ValidationSummary`, `RuleCheckResult`, `StatResult`,
+  `CleaningLog`, `DataLoadResult`.
+- `app/services/data_loader.py` — `DataLoader` service with pre-parse file validation
+  (50 MB limit, `.csv`/`.xlsx` extension check), multi-encoding fallback parsing
+  (`utf-8`, `utf-8-sig`, `latin1`, `cp1252`), openpyxl Excel parser, malformed CSV
+  resilience, Scenario B bundled dataset loader with graceful absence handling,
+  and DataFrame immutability guarantees.
+- `app/services/profiler.py` — `Profiler` service computing dimensions, memory usage,
+  missing value rates, duplicate rows, summary statistics, and automated type anomaly
+  detection (numeric and datetime pattern heuristics for object columns).
+- `tests/unit/test_data_loading.py` — 6 unit tests covering valid CSV ingestion,
+  extension rejection, 50 MB boundary rejection, empty file handling, malformed CSV
+  resilience, and DataFrame non-mutation.
+- `tests/unit/test_schema.py` — 3 unit tests covering exact schema matching,
+  case/spacing/synonym normalization, and non-mutating column renaming.
+- `tests/unit/test_profiler.py` — 3 unit tests covering profiling metric calculations
+  against a deterministic fixture, edge cases (single row, all-null column), and
+  DataFrame non-mutation.
+
+#### Changed
+- `app/pages/01_data_immersion.py` — upgraded from stub to complete Increment 1B UI:
+  file uploader tab, Scenario B bundled dataset tab, preview table with configurable
+  row slider (5–100 rows), KPI summary cards (rows, columns, memory, missing cells,
+  duplicate rows), detailed column profiling table, and data type anomaly alert banners.
+
+### Verification (Increment 1B)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests` | ✅ 23 files already formatted |
+| Format (black) | `black --check app tests` | ✅ 18 files left unchanged |
+| Tests | `pytest tests/unit/ -v` | ✅ 18 passed (6 smoke + 6 loading + 3 schema + 3 profiler) |
+
+Architectural purity:
+- Zero Streamlit imports in `app/services/`, `app/models/`, `app/database/` (verified via AST test).
+- Pure function / service isolation: `raw_df` immutability verified across all loader and profiler operations.
 
 #### Added
 - `app/models/dataset_schema.py` — canonical 12-column schema, expected dtypes,
