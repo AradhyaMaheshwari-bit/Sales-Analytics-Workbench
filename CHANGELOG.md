@@ -99,6 +99,48 @@ Smoke test coverage (all verified passing):
 | Format (ruff) | `ruff format --check app tests scripts` | ✅ 33 files already formatted |
 | Format (black) | `black --check app tests scripts` | ✅ 25 files left unchanged |
 
+## [0.5.0] — 2026-11-20
+
+### Increment 3 — SQL Analysis & Engine Security
+
+#### Added
+- `app/database/authorizer.py` — SQLite engine-level security authorizer and progress handler:
+  - Enforces strict read-only SELECT security policy (`SELECT` only, reads permitted exclusively on `main.sales`).
+  - Rejects write/schema/DDL/PRAGMA operations (`INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `ATTACH`, `DETACH`, `PRAGMA`, `sqlite_master`).
+  - Restricts SQL functions to an approved safe allowlist (`sum`, `count`, `avg`, `min`, `max`, `round`, `strftime`, `lower`, `upper`, `coalesce`, `abs`, `length`, `substr`, `trim`, `cast`, `ifnull`).
+  - Disables SQLite extension loading (`enable_load_extension(False)`).
+  - Enforces resource limits via `set_progress_handler()`: 2-second wall-clock execution time limit and 1,000,000 opcode virtual machine budget.
+- `app/database/queries.py` — SQL query execution and business query catalog:
+  - Seven approved business queries from the internship Task-1 repository (Query 5 adapted with `STRFTIME('%Y-%m', Order_Date)` and NULL date exclusion).
+  - Robust comment stripping (`--` line comments and `/* ... */` block comments) respecting single/double-quoted literals, escaped quotes (`''`, `""`), and ignoring backslashes as escapes.
+  - Statement pre-validation (`detect_multi_statement`, `validate_single_select`) rejecting multiple statements, empty/comment-only inputs, and write-CTEs (`WITH ... INSERT/UPDATE/DELETE`).
+  - Custom query execution with 500-row result capping, 501-row lookahead truncation detection, and structured `QueryResult` return model.
+- `tests/unit/test_authorizer.py` — 24 unit/integration tests covering authorizer permissions, function allowlists, progress handler interrupts, and database manager integration.
+- `tests/unit/test_queries.py` — 40 unit tests covering predefined queries, security denials, execution limits, and custom execution results.
+- `tests/unit/test_sql_validation.py` — 48 unit tests covering multi-statement detection, comment parsing, quote escaping, and CTE validation.
+
+#### Changed
+- `app/database/db_manager.py` — updated connection creation and rebuild methods to attach security authorizer and progress handler after data ingestion.
+- `app/pages/03_sql_analysis.py` — upgraded from empty-state stub to complete Module 3 UI:
+  - Predefined Queries mode with catalog selection, business questions, and collapsible SQL view.
+  - Custom SQL mode with interactive editor, schema guide, security guidelines, and execution feedback.
+
+### Verification (Increment 3)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests` | ✅ 46 files already formatted |
+| Format (black) | `black --check app tests` | ✅ 37 files left unchanged |
+| Tests | `pytest tests/unit/ -v` | ✅ 198 passed in 2.07s |
+
+Test coverage (Increment 3):
+- `test_authorizer.py`: 24 tests covering engine authorizer, function allowlists, progress handler interrupts, and database lifecycle.
+- `test_queries.py`: 40 tests covering predefined queries, security enforcement, and execution limits.
+- `test_sql_validation.py`: 48 tests covering multi-statement detection and CTE validation.
+
+Total test suite: 198 unit tests (86 from Increments 1 & 2 + 112 new unit tests in Increment 3).
+
 ## [0.4.0] — 2026-11-20
 
 ### Increment 2 — EDA & Business Intelligence (FR-11 through FR-17)

@@ -7,8 +7,7 @@ services — the database is per-session in-memory only.
 Design (SDD-DB-SQL §2.2, data-architecture §3): whenever ``active_df``
 changes (upload, clean, undo, reset) the previous connection is closed and
 a fresh one built from the new DataFrame.  The authorizer and progress
-handler belong to Increment 3 and are deliberately **not** implemented
-here.
+handler (Increment 3) are attached after ingestion completes.
 
 The module is Streamlit-free: callers pass in a connection handle or let
 the manager create one, and nothing here reads ``st.session_state``.
@@ -21,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+from app.database.authorizer import attach_security_controls
 
 # Canonical SQLite schema (SDD-DB-SQL §3).  No PK / NOT NULL constraints —
 # uploaded datasets are imperfect before cleaning; business rules live in
@@ -55,13 +56,18 @@ class DatabaseManager:
     def connection(self) -> sqlite3.Connection | None:
         return self._conn
 
-    def create_connection(self) -> sqlite3.Connection:
+    def create_connection(self, secured: bool = True) -> sqlite3.Connection:
         """Open a fresh in-memory connection.
 
         ``check_same_thread=False`` is mandatory (SDD-DB-SQL §2.1): Streamlit
         may execute a session's script runs on different worker threads.
+
+        Args:
+            secured: If True, attach security authorizer and progress handler.
         """
         self._conn = sqlite3.connect(":memory:", check_same_thread=False)
+        if secured:
+            attach_security_controls(self._conn)
         return self._conn
 
     def close(self) -> None:
@@ -77,12 +83,16 @@ class DatabaseManager:
         """Rebuild the database from *df* (SDD-DB-SQL §2.2).
 
         1. Close the existing connection (if any).
-        2. Open a fresh in-memory connection.
+        2. Open a fresh in-memory connection (unsecured for ingestion).
         3. Ingest *df* into table ``sales`` via ``to_sql(if_exists='replace')``.
+        4. Attach security authorizer and progress handler after ingestion.
         """
         self.close()
-        conn = self.create_connection()
+        # Create unsecured connection for ingestion
+        conn = self.create_connection(secured=False)
         self._ingest(conn, df)
+        # Attach security controls after data is loaded
+        attach_security_controls(conn)
         return conn
 
     # -- ingestion ------------------------------------------------------------
