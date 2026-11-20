@@ -98,6 +98,55 @@ Smoke test coverage (all verified passing):
 | Lint | `ruff check app tests scripts` | ✅ All checks passed |
 | Format (ruff) | `ruff format --check app tests scripts` | ✅ 33 files already formatted |
 | Format (black) | `black --check app tests scripts` | ✅ 25 files left unchanged |
+
+## [0.4.0] — 2026-11-20
+
+### Increment 2 — EDA & Business Intelligence (FR-11 through FR-17)
+
+#### Added
+- `app/utils/formatters.py` — Indian Rupee (INR) currency formatting, percentage formatting, and comma-separated number formatting with Indian numbering system (lakhs and crores).
+- `app/utils/charts.py` — centralized Plotly chart factory with `workbench_dark` template registration:
+  - Bar charts, line charts, correlation heatmaps, histograms, scatter plots, pie charts, and box plots.
+  - Consistent dark navy theme (`#0B132B` paper, `#1C2541` plot, `#2D3B60` grid, `#4F86F7`/`#00F5D4` accents).
+  - INR-formatted hover templates and responsive sizing.
+- `app/services/eda.py` — pure analytical logic (zero Streamlit imports, enforced by Ruff TID251):
+  - `compute_kpis`: Total Revenue, Total Orders, Average Order Value, Total Quantity.
+  - `compute_numeric_summary`: count, mean, std, min, 25%, 50%, 75%, max, IQR (9 statistics).
+  - `compute_categorical_summary`: frequency tables for categorical columns.
+  - `compute_correlation_matrix`: Pearson product-moment correlation matrix.
+  - `get_key_correlation_pairs`: top positive and negative correlation pairs.
+  - `aggregate_by_category`, `aggregate_by_city`, `aggregate_by_product`, `aggregate_monthly_trend`, `aggregate_by_gender`, `top_customers`: grouping aggregations.
+  - `run_eda_pipeline`: master pipeline returning complete EDA results dict.
+- `app/components/kpi_cards.py` — standardized KPI metric rendering components (`render_kpi_card`, `render_kpi_row`, `create_kpi_data`).
+- `app/components/filters.py` — interactive sidebar filtering controls (`render_sidebar_filters`, `apply_filters`, `render_filter_summary`).
+- `app/components/tables.py` — reusable table rendering components (`render_dataframe_table`, `render_paginated_table`, `render_paginated_kpi_table`).
+- `tests/unit/test_eda.py` — 14 unit tests covering all EDA service functions (KPIs, numeric/categorical summaries, correlation matrix, aggregations, empty DataFrame handling).
+- `tests/unit/test_formatters.py` — 4 unit tests verifying INR formatting, comma grouping, percentages, and null handling.
+- `tests/unit/test_charts.py` — 4 unit tests verifying `ChartFactory` produces valid `go.Figure` instances adhering to the dark theme template.
+
+#### Changed
+- `app/pages/02_eda_bi.py` — upgraded from empty-state stub to complete Module 2 UI dashboard:
+  - KPI row: Total Revenue, Total Orders, Average Order Value, Total Quantity.
+  - Chart grid: Revenue by Category (bar), Monthly Revenue Trend (line), Correlation Heatmap, Revenue by City (bar).
+  - Descriptive statistics: numeric summary table and categorical frequency tables.
+  - Sidebar filters: date range, category, city, and numeric range sliders.
+
+### Verification (Increment 2)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests scripts` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests scripts` | ✅ 42 files already formatted |
+| Format (black) | `black --check app tests scripts` | ✅ 34 files left unchanged |
+| Layer rule | Ruff TID251 | ✅ Zero Streamlit imports in `services/`, `models/`, `database/` |
+| Tests | `pytest tests/unit/ -v` | ✅ 86 passed in 1.87s |
+
+Test coverage (Increment 2):
+- `test_eda.py`: 14 tests covering all EDA service functions (KPIs, numeric/categorical summaries, correlation matrix, aggregations, empty DataFrame handling, missing columns).
+- `test_formatters.py`: 4 tests verifying INR formatting, comma grouping, percentages, and null handling.
+- `test_charts.py`: 4 tests verifying `ChartFactory` produces valid `go.Figure` instances adhering to the dark theme template.
+
+Total test suite: 86 unit tests (6 from Increment 1A, 60 from Increment 1B & 1C, 22 from Increment 2).
 | Tests | `pytest tests/unit/ -q` | ✅ 64 passed (18 from 1A/1B + 46 new unit tests across 5 test suites) |
 
 Architectural purity:
