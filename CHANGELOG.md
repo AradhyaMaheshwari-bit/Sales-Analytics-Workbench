@@ -99,6 +99,35 @@ Smoke test coverage (all verified passing):
 | Format (ruff) | `ruff format --check app tests scripts` | ✅ 33 files already formatted |
 | Format (black) | `black --check app tests scripts` | ✅ 25 files left unchanged |
 
+## [0.6.0] — 2026-11-20
+
+### Increment 4 — Power BI Showcase
+
+#### Added
+- `app/assets/power_bi/dax_measures_reference.json` — machine-readable specification of the six approved DAX measures, four slicers, and six visualizations.
+- `tests/unit/test_power_bi.py` — unit tests validating DAX measure reference JSON structure, counts, contents, non-dismissible disclaimer rendering, and missing-asset screenshot fallback behavior.
+
+#### Changed
+- `app/pages/04_power_bi.py` — upgraded from empty-state stub to complete Module 4 UI:
+  - Non-dismissible authentic deliverable disclaimer banner (SDD-PBI §2.3).
+  - Dynamic screenshot viewer checking for `app/assets/power_bi/dashboard_full.png` and `dashboard_filter_state.png`, with fallback informational message when absent.
+  - Interactive 2x3 DAX measure reference cards displaying formulas, return types, and business purposes.
+  - Slicers and dynamic visualizations capability documentation tables.
+
+### Verification (Increment 4)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests` | ✅ 46 files already formatted |
+| Format (black) | `black --check app tests` | ✅ 37 files left unchanged |
+| Tests | `pytest tests/unit/ -v` | ✅ 204 passed in 2.15s |
+
+Test coverage (Increment 4):
+- `test_power_bi.py`: 6 unit tests covering JSON schema validation, DAX measures, slicers, visualizations, disclaimer presence, and missing-asset fallback behavior.
+
+Total test suite: 204 unit tests (198 from Increments 1–3 + 6 new unit tests in Increment 4).
+
 ## [0.5.0] — 2026-11-20
 
 ### Increment 3 — SQL Analysis & Engine Security

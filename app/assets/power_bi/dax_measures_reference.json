@@ -1,0 +1,100 @@
+{
+  "dax_measures": [
+    {
+      "measure_name": "Total Revenue",
+      "dax_formula": "Total Revenue = SUM(Sales[Total_Sales])",
+      "return_type": "Currency (₹)",
+      "purpose": "Aggregate revenue across all transactions."
+    },
+    {
+      "measure_name": "Average Order Value",
+      "dax_formula": "AOV = DIVIDE(SUM(Sales[Total_Sales]), COUNTROWS(Sales))",
+      "return_type": "Currency (₹)",
+      "purpose": "Revenue per transaction; key retail performance KPI."
+    },
+    {
+      "measure_name": "Total Orders",
+      "dax_formula": "Total Orders = COUNTROWS(Sales)",
+      "return_type": "Integer",
+      "purpose": "Count of all transaction records."
+    },
+    {
+      "measure_name": "Total Quantity Sold",
+      "dax_formula": "Total Quantity = SUM(Sales[Quantity])",
+      "return_type": "Integer",
+      "purpose": "Units moved across all products."
+    },
+    {
+      "measure_name": "Revenue by Gender %",
+      "dax_formula": "Gender % = DIVIDE(SUM(Sales[Total_Sales]), CALCULATE(SUM(Sales[Total_Sales]), ALL(Sales[Gender])), 0)",
+      "return_type": "Percentage",
+      "purpose": "Gender's contribution as a share of total revenue."
+    },
+    {
+      "measure_name": "Top Category Revenue",
+      "dax_formula": "Top Category = CALCULATE(SUM(Sales[Total_Sales]), TOPN(1, ALL(Sales[Category]), SUM(Sales[Total_Sales])))",
+      "return_type": "Currency (₹)",
+      "purpose": "Revenue from the single highest-performing product category."
+    }
+  ],
+  "slicers": [
+    {
+      "slicer_field": "Category",
+      "slicer_type": "Multi-select dropdown",
+      "filters_applied_to": "Revenue by product visual, monthly trend, top products table"
+    },
+    {
+      "slicer_field": "Gender",
+      "slicer_type": "Radio button tile",
+      "filters_applied_to": "Gender revenue split donut chart, revenue scatter, KPI cards"
+    },
+    {
+      "slicer_field": "City",
+      "slicer_type": "Multi-select list",
+      "filters_applied_to": "City revenue map, product table"
+    },
+    {
+      "slicer_field": "Order_Date / Month",
+      "slicer_type": "Date range filter (between)",
+      "filters_applied_to": "Monthly revenue trend line, all aggregates"
+    }
+  ],
+  "visualizations": [
+    {
+      "visual_number": 1,
+      "visual_type": "KPI Cards (×4)",
+      "data_bound": "Total Revenue, AOV, Total Orders, Total Quantity",
+      "business_insight": "High-level executive summary at a glance"
+    },
+    {
+      "visual_number": 2,
+      "visual_type": "Clustered Bar Chart",
+      "data_bound": "Revenue by Category",
+      "business_insight": "Compares category performance horizontally"
+    },
+    {
+      "visual_number": 3,
+      "visual_type": "Line Chart",
+      "data_bound": "Monthly Revenue Trend (Order_Date → Month)",
+      "business_insight": "Reveals seasonality and growth patterns"
+    },
+    {
+      "visual_number": 4,
+      "visual_type": "Donut Chart",
+      "data_bound": "Revenue Split by Gender",
+      "business_insight": "Male vs. Female revenue proportion (consistent with FR-19 analysis)"
+    },
+    {
+      "visual_number": 5,
+      "visual_type": "Map Visual",
+      "data_bound": "Revenue by City",
+      "business_insight": "Spatial distribution of customer spend"
+    },
+    {
+      "visual_number": 6,
+      "visual_type": "Top 10 Products Table",
+      "data_bound": "Product → Revenue (sorted descending)",
+      "business_insight": "Identifies highest-revenue individual products"
+    }
+  ]
+}
