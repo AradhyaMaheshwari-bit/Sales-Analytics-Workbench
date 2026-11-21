@@ -3,6 +3,40 @@
 All notable changes to the Sales Analytics Workbench are documented here.
 Format follows Keep a Changelog; versions follow Semantic Versioning.
 
+## [0.7.0] — 2026-11-21
+
+### Increment 5 — Statistical Validation
+
+#### Added
+- `app/services/statistics.py` — pure Welch's independent two-sample t-test service (SDD-STAT §3–§5, FR-19):
+  - Welch t-statistic, Welch-Satterthwaite degrees of freedom, two-tailed p-value.
+  - Manually computed 95% confidence interval for the mean difference.
+  - Guardrails: single group (< 2), N < 5 per group, zero variance, missing required columns.
+  - Missing Gender rows excluded and counted separately (`count_missing_gender_rows`).
+  - Missing / non-finite Total_Sales values excluded via pairwise omission.
+  - More than two gender categories require explicit cohort selection.
+  - Plain-language interpretation (`build_interpretation`) with causation and sampling-variation caveats.
+- `tests/unit/test_statistics.py` — 11 unit tests covering Welch calculation, decision rules, all edge-case guards, pairwise sales omission, missing-gender counting, multi-category cohort selection, non-hardcoded source inspection, and gated historical benchmark validation.
+
+#### Changed
+- `app/pages/05_statistical_validation.py` — upgraded from empty-state stub to complete Module 5 UI:
+  - Hypothesis formulation card (H₀ / H₁, two-tailed, α = 0.05).
+  - Interactive cohort selectors for datasets with more than two gender categories.
+  - Computed results: t-statistic, p-value, mean difference, 95% CI, decision.
+  - Display of rows excluded due to missing Gender and invalid Total_Sales, kept separate.
+  - Plotly distribution overlay for the selected cohorts.
+
+### Verification (Increment 5)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests scripts` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests scripts` | ✅ 50 files already formatted |
+| Format (black) | `black --check app tests scripts` | ✅ 40 files left unchanged |
+| Tests | `pytest tests -q` | ✅ 215 passed, 1 skipped in 2.86s |
+
+Total test suite: 215 unit tests (204 from Increments 1–4 + 11 new unit tests in Increment 5).
+
 ## [0.1.0] — 2026-11-19
 
 ### Increment 1A — Project Foundation and Runnable Streamlit Shell
