@@ -83,11 +83,11 @@ def _handle_upload_source() -> None:
 
     st.markdown(
         """
-    Load the private internship dataset from `data/raw/internship_dataset.xlsx` (Scenario B).
-    If the file is not present locally, place a copy in `data/raw/` or use file upload.
+    Load the synthetic demo dataset from `data/raw/synthetic_demo_dataset.xlsx`.
+    If the file is not present locally, generate it via `scripts/generate_demo_data.py` or use file upload.
     """
     )
-    if st.button("Load Bundled Internship Dataset"):
+    if st.button("Load Synthetic Demo Dataset"):
         bundled_result = loader.load_bundled_dataset()
         if bundled_result.success:
             st.session_state["raw_df"] = bundled_result.dataframe.copy(deep=True)
@@ -106,7 +106,7 @@ def _handle_upload_source() -> None:
                 st.session_state["active_df"] = bundled_result.dataframe.copy(deep=True)
             st.session_state["schema_report"] = bundled_result.schema_report
             st.session_state["load_info"] = bundled_result.load_info
-            st.success("Successfully loaded bundled internship dataset.")
+            st.success("Successfully loaded synthetic demo dataset.")
         else:
             st.warning(bundled_result.error_message)
 
@@ -121,8 +121,8 @@ def _render_preview() -> None:
 
     if active_df is None or active_df.empty:
         st.info(
-            "No dataset loaded. Upload a CSV or XLSX file above, or load the bundled "
-            "internship dataset to begin data immersion and profiling."
+            "No dataset loaded. Upload a CSV or XLSX file above, or load the synthetic "
+            "demo dataset to begin data immersion and profiling."
         )
         return
 

@@ -172,5 +172,5 @@ def rebuild_sales_table(df: pd.DataFrame) -> sqlite3.Connection:
 
 
 def build_demo_dataset_path() -> Path:
-    """Return the canonical path for the bundled internship dataset."""
-    return Path("data/raw/internship_dataset.xlsx")
+    """Return the canonical path for the synthetic demo dataset."""
+    return Path("data/raw/synthetic_demo_dataset.xlsx")

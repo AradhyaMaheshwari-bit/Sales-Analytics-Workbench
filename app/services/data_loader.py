@@ -19,6 +19,12 @@ from app.utils.logger import logger
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 ALLOWED_EXTENSIONS = {".csv", ".xlsx"}
 
+#: Reserved path for the authentic internship dataset (historical benchmark only).
+ORIGINAL_DATASET_PATH = "data/raw/internship_dataset.xlsx"
+
+#: Default path for the synthetic demo dataset (Scenario A demo mode).
+SYNTHETIC_DEMO_DATASET_PATH = "data/raw/synthetic_demo_dataset.xlsx"
+
 
 class DataLoader:
     """Service for validating, loading, and parsing dataset files."""
@@ -204,11 +210,17 @@ class DataLoader:
         )
 
     def load_bundled_dataset(
-        self, relative_path: str = "data/raw/internship_dataset.xlsx"
+        self, relative_path: str = SYNTHETIC_DEMO_DATASET_PATH
     ) -> DataLoadResult:
-        """Load the Scenario B bundled dataset from data/raw/internship_dataset.xlsx.
+        """Load the synthetic demo dataset from data/raw/synthetic_demo_dataset.xlsx.
 
         Returns a failure DataLoadResult with clear setup guidance if absent.
+
+        Note:
+            The default bundled path points to the synthetic demo dataset. The
+            authentic internship dataset (historical benchmark) is loaded
+            exclusively through the benchmark test path
+            ``data/raw/internship_dataset.xlsx``.
         """
         path = Path(relative_path)
         if not path.is_file():
@@ -218,9 +230,9 @@ class DataLoader:
                 load_info={"file_name": str(path)},
                 success=False,
                 error_message=(
-                    f"Internship dataset not found at '{relative_path}'. "
-                    "Please place a copy in 'data/raw/internship_dataset.xlsx' "
-                    "or upload a file via the Upload tab."
+                    f"Synthetic demo dataset not found at '{relative_path}'. "
+                    "Please generate it via scripts/generate_demo_data.py or upload "
+                    "a file via the Upload tab."
                 ),
             )
 

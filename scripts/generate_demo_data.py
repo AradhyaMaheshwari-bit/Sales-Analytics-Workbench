@@ -1,7 +1,8 @@
 """Generate the deterministic synthetic internship dataset (FR-CC-01, D-1).
 
-Writes the synthetic sales dataset to ``data/raw/internship_dataset.xlsx``
-(scenario A demo mode / scenario B bundled dataset).
+Writes the synthetic sales dataset to ``data/raw/synthetic_demo_dataset.xlsx``.
+The authentic internship dataset path (``data/raw/internship_dataset.xlsx``) is
+reserved exclusively for the original internship dataset and historical benchmark.
 
 Design constraints (approved specs, do NOT deviate):
 - Deterministic output: same fixed seed → identical dataset on every run.
@@ -29,6 +30,12 @@ _GENERATE_SEED = 42
 
 # Documented synthetic row count
 DEMO_ROW_COUNT = 60
+
+# Reserved path for the authentic internship dataset (never overwritten by synthetic generation)
+ORIGINAL_DATASET_PATH = "data/raw/internship_dataset.xlsx"
+
+# Default output path for synthetic demo dataset
+SYNTHETIC_DEMO_DATASET_PATH = "data/raw/synthetic_demo_dataset.xlsx"
 
 # Plausible date range for synthetic orders (inclusive)
 DATE_MIN = date(2024, 1, 1)
@@ -126,13 +133,44 @@ def generate_demo_dataframe() -> pd.DataFrame:
     ]
 
 
+def _is_reserved_original_path(path: str | Path) -> bool:
+    """Return True if *path* resolves to the reserved original-dataset path.
+
+    Raises:
+        ValueError: If path resolution fails (fail-closed security guard).
+    """
+    try:
+        reserved = Path(ORIGINAL_DATASET_PATH).resolve()
+        candidate = Path(path).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(
+            f"Refusing to write synthetic data: path resolution failed for "
+            f"'{path}': {exc}"
+        ) from exc
+    return candidate == reserved
+
+
 def generate_and_save(
-    output_path: str | Path = "data/raw/internship_dataset.xlsx",
+    output_path: str | Path = SYNTHETIC_DEMO_DATASET_PATH,
 ) -> pd.DataFrame:
     """Generate the deterministic dataset and save it to *output_path*.
 
+    Synthetic data must never be written to the reserved original internship
+    dataset path (``data/raw/internship_dataset.xlsx``); attempting to do so
+    raises ``ValueError`` instead of silently overwriting authentic data.
+
     Returns the generated DataFrame (for verification / tests).
+
+    Raises:
+        ValueError: If *output_path* targets the reserved original-dataset path.
     """
+    if _is_reserved_original_path(output_path):
+        raise ValueError(
+            f"Refusing to write synthetic data to the reserved original dataset "
+            f"path '{ORIGINAL_DATASET_PATH}'. Synthetic output must go to "
+            f"'{SYNTHETIC_DEMO_DATASET_PATH}'."
+        )
+
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     df = generate_demo_dataframe()
@@ -144,5 +182,5 @@ if __name__ == "__main__":
     generated = generate_and_save()
     print(
         f"Generated synthetic demo dataset with {len(generated)} rows "
-        f"at {Path('data/raw/internship_dataset.xlsx')}"
+        f"at {SYNTHETIC_DEMO_DATASET_PATH}"
     )
