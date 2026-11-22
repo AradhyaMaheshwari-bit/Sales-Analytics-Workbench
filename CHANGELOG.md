@@ -3,6 +3,37 @@
 All notable changes to the Sales Analytics Workbench are documented here.
 Format follows Keep a Changelog; versions follow Semantic Versioning.
 
+## [0.8.0] — 2026-11-22
+
+### Increment 6 — Integration & Final QA
+
+#### Added
+- `tests/integration/test_end_to_end_workflows.py` — end-to-end integration and QA suite (13 tests):
+  - I-1: `DataLoader.load_file` ingests raw XLSX bytes and returns a successful `DataLoadResult` with a schema report.
+  - I-2: Cleaning pipeline logs record accurate row counts; an unparseable date is preserved (not dropped) and coerced to `None`.
+  - I-3: SQLite `sales` table receives the exact cleaned dataset — matching row count, column order, and `SUM(Total_Sales)` within 1e-9.
+  - I-4: EDA `compute_kpis` total revenue agrees with the predefined SQL revenue query within 1e-9.
+  - I-5: All seven approved predefined business queries succeed and return non-empty results.
+  - I-6: Custom SQL security authorizer permits `SELECT` and rejects `DELETE FROM sales` with "Security Violation", leaving the table unchanged.
+  - I-7: `prepare_comparison_frame` returns exactly `["Gender", "Total_Sales"]` with non-null sales and string cohort labels.
+  - I-8: `DatabaseManager.rebuild`/`close` connection lifecycle (a) on a fresh instance and (b) `get_db_manager()` singleton identity.
+  - I-9: Cross-layer continuity via explicit row-count/schema checks, EDA-versus-SQL aggregate agreement, EDA-versus-SQL grouping agreement, and independent comparison of the Welch t-test against `scipy.stats.ttest_ind(equal_var=False)` within 1e-6.
+  - A-1..A-3: Headless Streamlit `AppTest` coverage for pages 03 and 05 with injected session state, the SQL page "Database connection not available" warning, and the statistics page "No dataset loaded" empty state.
+
+#### Changed
+- `README.md` — new project documentation covering the five modules (with the FR-20 deferral noted), the locally verified Python 3.14.6 environment and pinned dependencies, setup for PowerShell and POSIX shells, synthetic demo data generation and its fail-closed path guard, application launch, the mandatory `PYTHONPATH=.` test invocation, quality gates, project structure, dataset separation and privacy guarantees, and the Power BI deliverable reference.
+
+### Verification (Increment 6)
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `ruff check app tests scripts` | ✅ All checks passed |
+| Format (ruff) | `ruff format --check app tests scripts` | ✅ 51 files already formatted |
+| Format (black) | `black --check app tests scripts` | ✅ 41 files would be left unchanged |
+| Tests | `PYTHONPATH=. pytest tests -q` | ✅ 237 passed, 1 skipped |
+
+Total test suite: 238 collected (224 baseline + 13 new integration tests + 1 pre-existing skipped).
+
 ## [0.7.0] — 2026-11-21
 
 ### Increment 5 — Statistical Validation
