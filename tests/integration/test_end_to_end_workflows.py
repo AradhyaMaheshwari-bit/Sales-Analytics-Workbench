@@ -25,9 +25,133 @@ from scipy import stats
 from scripts.generate_demo_data import generate_and_save
 
 try:
+    from streamlit.runtime.uploaded_file_manager import UploadedFile, UploadedFileRec
     from streamlit.testing.v1 import AppTest
 except ImportError:
     AppTest = None
+
+APP_ROOT = Path(__file__).resolve().parents[2] / "app"
+
+
+def _file_uploader(app) -> object:
+    """Locate the file_uploader element rendered by AppTest.
+
+    Streamlit's AppTest exposes no dedicated ``file_uploader`` accessor, so the
+    widget is found by walking the rendered element tree.
+    """
+    for element in app.main:
+        if getattr(element, "type", None) == "file_uploader":
+            return element
+    raise AssertionError("No file_uploader element rendered on the page")
+
+
+@pytest.mark.skipif(AppTest is None, reason="Streamlit AppTest not available")
+def test_module1_file_uploader_widget_initializes_db_and_active_df(
+    tmp_path: Path,
+) -> None:
+    """End-to-end test: Module 1's real file uploader widget initializes active_df and db_conn."""
+    csv_bytes = (
+        b"Order_ID,Order_Date,Customer_ID,Customer_Name,Age,Gender,City,Product,"
+        b"Category,Quantity,Unit_Price,Total_Sales\n"
+        b"A,2024-01-01,C1,John Doe,30,Male,Patna,Electronics,Electronics,2,500.0,1000.0\n"
+        b"B,2024-01-02,C2,Jane Smith,45,Female,Delhi,Furniture,Furniture,1,200.0,200.0\n"
+        b"C,2024-01-03,C3,Alex Chen,25,Male,Mumbai,Clothing,Clothing,3,150.0,450.0\n"
+    )
+
+    page1 = AppTest.from_file(str(APP_ROOT / "pages/01_data_immersion.py"))
+    page1.run(timeout=10)
+    assert not page1.exception
+    assert page1.session_state["active_df"] is None
+    assert page1.session_state["db_conn"] is None
+
+    uploader = _file_uploader(page1)
+    uploaded = UploadedFile(
+        UploadedFileRec(
+            file_id="test-upload-id",
+            name="test_upload.csv",
+            type="text/csv",
+            data=csv_bytes,
+        ),
+        None,
+    )
+    # Drive the widget exactly as a browser upload would: set its own session key.
+    page1.session_state[uploader.proto.id] = uploaded
+    page1.run(timeout=10)
+
+    assert not page1.exception, [e.value for e in page1.exception]
+    assert not page1.error
+
+    active_df = page1.session_state["active_df"]
+    assert active_df is not None
+    assert len(active_df) == 3
+    assert len(active_df.columns) == 12
+    assert page1.session_state["load_info"]["file_name"] == "test_upload.csv"
+
+    conn = page1.session_state["db_conn"]
+    assert conn is not None
+    assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 3
+
+    success_msgs = [s.value for s in page1.success]
+    assert any("Successfully loaded 'test_upload.csv'" in m for m in success_msgs)
+
+    # The connection created by the page is directly usable by Module 3.
+    page3 = AppTest.from_file(str(APP_ROOT / "pages/03_sql_analysis.py"))
+    page3.session_state["active_df"] = active_df
+    page3.session_state["db_conn"] = conn
+    page3.run(timeout=10)
+    assert not page3.exception
+    assert not page3.warning
+
+
+@pytest.mark.skipif(AppTest is None, reason="Streamlit AppTest not available")
+def test_load_and_initialize_failure_state_reset(tmp_path: Path) -> None:
+    """_load_and_initialize failure clears session state and reports error (run inside AppTest)."""
+    driver = tmp_path / "load_failure_driver.py"
+    driver.write_text(
+        "import importlib\n"
+        "\n"
+        "import pandas as pd\n"
+        "import streamlit as st\n"
+        "\n"
+        'mod1 = importlib.import_module("app.pages.01_data_immersion")\n'
+        "\n"
+        'st.session_state["raw_df"] = pd.DataFrame({"A": [1]})\n'
+        'st.session_state["active_df"] = pd.DataFrame({"A": [1]})\n'
+        'st.session_state["db_conn"] = "stale_conn"\n'
+        'st.session_state["schema_report"] = "stale_report"\n'
+        'st.session_state["load_info"] = {"file_name": "stale.csv"}\n'
+        'st.session_state["column_mapping"] = {"A": "B"}\n'
+        "\n"
+        'bad_df = pd.DataFrame({"A": [object()]})\n'
+        "mod1._load_and_initialize(\n"
+        "    raw_df=bad_df,\n"
+        "    active_df=bad_df,\n"
+        "    schema_report=None,\n"
+        '    load_info={"file_name": "bad.csv"},\n'
+        "    column_mapping={},\n"
+        '    success_message="Should not succeed",\n'
+        ")\n",
+        encoding="utf-8",
+    )
+
+    driver_app = AppTest.from_file(str(driver))
+    driver_app.run(timeout=10)
+
+    assert not driver_app.exception, [e.value for e in driver_app.exception]
+
+    # A user-facing error is shown; no success message leaks through.
+    errors = [e.value for e in driver_app.error]
+    assert len(errors) == 1
+    assert "Failed to initialize database" in errors[0]
+    assert not driver_app.success
+
+    # Every dataset/database key is reset to a clean default.
+    assert driver_app.session_state["raw_df"] is None
+    assert driver_app.session_state["active_df"] is None
+    assert driver_app.session_state["db_conn"] is None
+    assert driver_app.session_state["schema_report"] is None
+    assert driver_app.session_state["load_info"] == {}
+    assert driver_app.session_state["column_mapping"] == {}
 
 
 @pytest.fixture
@@ -326,3 +450,102 @@ def test_eda_page_degrades_gracefully_without_optional_columns() -> None:
     infos = [i.value for i in page2.info]
     assert any("Revenue by Category" in msg for msg in infos)
     assert any("Revenue by City" in msg for msg in infos)
+
+
+def test_loader_and_db_manager_initialization_flow(sample_demo_file: Path) -> None:
+    """Integration test: Loading dataset via DataLoader and rebuilding DB initializes both active_df and db_conn correctly."""
+    loader = DataLoader()
+    raw_bytes = sample_demo_file.read_bytes()
+    load_result = loader.load_file(raw_bytes, "synthetic_demo_dataset.xlsx")
+    assert load_result.success
+
+    active_df = load_result.dataframe
+    assert active_df is not None
+    assert len(active_df) == 60
+
+    mgr = DatabaseManager()
+    conn = mgr.rebuild(active_df)
+    try:
+        assert conn is not None
+        assert mgr.count_rows() == 60
+        cols = mgr.get_table_columns()
+        assert "Total_Sales" in cols
+        assert len(cols) == 12
+
+        # Verify Module 3 query execution works with this connection
+        res = execute_predefined_query(conn, "1_total_revenue")
+        assert res.success
+        assert res.row_count > 0
+    finally:
+        mgr.close()
+
+
+@pytest.mark.skipif(AppTest is None, reason="Streamlit AppTest not available")
+def test_module3_runs_after_module1_actual_load(sample_demo_file: Path) -> None:
+    """Integration test: Module 3 renders and executes queries without connection warnings after loading in Module 1."""
+    loader = DataLoader()
+    bundled_result = loader.load_bundled_dataset(str(sample_demo_file))
+    assert bundled_result.success
+
+    active_df = bundled_result.dataframe
+    mgr = DatabaseManager()
+    conn = mgr.rebuild(active_df)
+
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    page3 = AppTest.from_file(str(app_root / "pages/03_sql_analysis.py"))
+    page3.session_state["active_df"] = active_df
+    page3.session_state["db_conn"] = conn
+    page3.run(timeout=10)
+
+    assert not page3.exception
+    assert not page3.warning  # No "Database connection not available" warning
+    mgr.close()
+
+
+def test_database_initialization_failure_handling() -> None:
+    """Integration test: Database initialization failure handling leaves no stale connections."""
+    mgr = DatabaseManager()
+    # Pass an object that cannot be converted/written to sqlite via pandas to_sql
+    bad_df = pd.DataFrame({"A": [object()]})
+
+    try:
+        mgr.rebuild(bad_df)
+    except Exception:
+        pass
+
+    assert mgr.connection is None
+    mgr.close()
+    assert mgr.connection is None
+
+
+def test_module1_load_synthetic_demo_button_initializes_db_and_active_df(
+    sample_demo_file: Path,
+) -> None:
+    """End-to-end integration: Module 1 synthetic demo load initializes active_df and db_conn, enabling Module 3."""
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    page1 = AppTest.from_file(str(app_root / "pages/01_data_immersion.py"))
+    page1.run(timeout=10)
+    assert not page1.exception
+
+    # Find the "Load Synthetic Demo Dataset" button
+    demo_buttons = [b for b in page1.button if "Synthetic Demo" in b.label]
+    assert len(demo_buttons) > 0, "Expected 'Load Synthetic Demo Dataset' button"
+    demo_buttons[0].click().run(timeout=10)
+    assert not page1.exception
+
+    # If demo file exists, active_df and db_conn must both be initialized
+    if (
+        "active_df" in page1.session_state
+        and page1.session_state["active_df"] is not None
+    ):
+        assert page1.session_state["db_conn"] is not None
+        # The database holds the loaded rows
+        conn = page1.session_state["db_conn"]
+        assert conn.execute("SELECT COUNT(*) FROM sales").fetchone()[0] == 60
+        # Passing state to page 03 renders without warning
+        page3 = AppTest.from_file(str(app_root / "pages/03_sql_analysis.py"))
+        page3.session_state["active_df"] = page1.session_state["active_df"]
+        page3.session_state["db_conn"] = page1.session_state["db_conn"]
+        page3.run(timeout=10)
+        assert not page3.exception
+        assert not page3.warning

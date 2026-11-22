@@ -90,9 +90,13 @@ class DatabaseManager:
         self.close()
         # Create unsecured connection for ingestion
         conn = self.create_connection(secured=False)
-        self._ingest(conn, df)
-        # Attach security controls after data is loaded
-        attach_security_controls(conn)
+        try:
+            self._ingest(conn, df)
+            # Attach security controls after data is loaded
+            attach_security_controls(conn)
+        except Exception:
+            self.close()
+            raise
         return conn
 
     # -- ingestion ------------------------------------------------------------

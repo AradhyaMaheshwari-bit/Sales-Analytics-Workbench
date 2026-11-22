@@ -7,6 +7,8 @@ validation, undo/reset/replacement state handling, and cleaned-data export.
 Design: ui-ux-design.md §5.1 (tabs), data-architecture.md §2-§5, module-design.md §2.3.
 """
 
+from typing import Any
+
 import pandas as pd
 import streamlit as st
 
@@ -48,6 +50,37 @@ def _rebuild_db(df: pd.DataFrame) -> None:
     st.session_state["db_conn"] = db_manager.rebuild(df)
 
 
+def _load_and_initialize(
+    raw_df: pd.DataFrame,
+    active_df: pd.DataFrame,
+    schema_report: Any,
+    load_info: dict,
+    column_mapping: dict | None = None,
+    success_message: str = "",
+) -> None:
+    """Attempt to rebuild the database; if successful, commit to session state and show success.
+    If database initialization fails, keep session state consistent and report error (Requirement 5).
+    """
+    try:
+        _rebuild_db(active_df)
+    except Exception as exc:
+        st.error(f"Failed to initialize database: {exc}")
+        st.session_state["raw_df"] = None
+        st.session_state["active_df"] = None
+        st.session_state["db_conn"] = None
+        st.session_state["schema_report"] = None
+        st.session_state["load_info"] = {}
+        st.session_state["column_mapping"] = {}
+        return
+
+    st.session_state["raw_df"] = raw_df
+    st.session_state["active_df"] = active_df
+    st.session_state["column_mapping"] = column_mapping or {}
+    st.session_state["schema_report"] = schema_report
+    st.session_state["load_info"] = load_info
+    st.success(success_message)
+
+
 def _handle_upload_source() -> None:
     """Render source selection (upload vs. bundled Scenario B)."""
     uploaded_file = st.file_uploader(
@@ -60,22 +93,27 @@ def _handle_upload_source() -> None:
         file_name = uploaded_file.name
         load_result = loader.load_file(file_bytes, file_name)
         if load_result.success:
-            st.session_state["raw_df"] = load_result.dataframe.copy(deep=True)
+            raw_df = load_result.dataframe.copy(deep=True)
+            column_mapping = {}
             if load_result.schema_report and load_result.schema_report.mapped_columns:
-                st.session_state["column_mapping"] = dict(
-                    load_result.schema_report.mapped_columns
-                )
-                st.session_state["active_df"] = apply_column_mapping(
+                column_mapping = dict(load_result.schema_report.mapped_columns)
+                active_df = apply_column_mapping(
                     load_result.dataframe, load_result.schema_report.mapped_columns
                 )
             else:
-                st.session_state["active_df"] = load_result.dataframe.copy(deep=True)
-            st.session_state["schema_report"] = load_result.schema_report
-            st.session_state["load_info"] = load_result.load_info
-            st.success(
+                active_df = raw_df.copy(deep=True)
+            success_msg = (
                 f"Successfully loaded '{file_name}' "
                 f"({load_result.load_info.get('row_count', 0):,} rows, "
                 f"{load_result.load_info.get('column_count', 0)} columns)."
+            )
+            _load_and_initialize(
+                raw_df=raw_df,
+                active_df=active_df,
+                schema_report=load_result.schema_report,
+                load_info=load_result.load_info,
+                column_mapping=column_mapping,
+                success_message=success_msg,
             )
         else:
             st.error(load_result.error_message or "Failed to load dataset.")
@@ -90,23 +128,28 @@ def _handle_upload_source() -> None:
     if st.button("Load Synthetic Demo Dataset"):
         bundled_result = loader.load_bundled_dataset()
         if bundled_result.success:
-            st.session_state["raw_df"] = bundled_result.dataframe.copy(deep=True)
+            raw_df = bundled_result.dataframe.copy(deep=True)
+            column_mapping = {}
             if (
                 bundled_result.schema_report
                 and bundled_result.schema_report.mapped_columns
             ):
-                st.session_state["column_mapping"] = dict(
-                    bundled_result.schema_report.mapped_columns
-                )
-                st.session_state["active_df"] = apply_column_mapping(
+                column_mapping = dict(bundled_result.schema_report.mapped_columns)
+                active_df = apply_column_mapping(
                     bundled_result.dataframe,
                     bundled_result.schema_report.mapped_columns,
                 )
             else:
-                st.session_state["active_df"] = bundled_result.dataframe.copy(deep=True)
-            st.session_state["schema_report"] = bundled_result.schema_report
-            st.session_state["load_info"] = bundled_result.load_info
-            st.success("Successfully loaded synthetic demo dataset.")
+                active_df = raw_df.copy(deep=True)
+
+            _load_and_initialize(
+                raw_df=raw_df,
+                active_df=active_df,
+                schema_report=bundled_result.schema_report,
+                load_info=bundled_result.load_info,
+                column_mapping=column_mapping,
+                success_message="Successfully loaded synthetic demo dataset.",
+            )
         else:
             st.warning(bundled_result.error_message)
 
