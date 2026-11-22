@@ -72,3 +72,31 @@ def test_pie_chart_returns_figure(factory, sample_df):
     )
     assert isinstance(fig, go.Figure)
     assert fig.layout.title.text == "Revenue Share"
+
+
+def test_monthly_sales_trend_chart_with_canonical_schema(factory):
+    """Regression test: line chart renders correctly with aggregate_monthly_trend from canonical dataset."""
+    from app.services.eda import aggregate_monthly_trend
+
+    df = pd.DataFrame(
+        {
+            "Order_Date": ["2024-01-10", "2024-01-20", "2024-02-15", "2024-03-01"],
+            "Total_Sales": [1500.0, 2500.0, 1800.0, 3200.0],
+        }
+    )
+    monthly_trend = aggregate_monthly_trend(df)
+    assert list(monthly_trend.columns) == ["Month", "Total_Sales"]
+    assert len(monthly_trend) == 3
+
+    fig = factory.line_chart(
+        monthly_trend,
+        x="Month",
+        y="Total_Sales",
+        title="Monthly Revenue Trend",
+        yaxis_title="Revenue (₹)",
+        y_is_currency=True,
+    )
+    assert isinstance(fig, go.Figure)
+    assert fig.layout.title.text == "Monthly Revenue Trend"
+    assert fig.layout.xaxis.title.text == "Month"
+    assert fig.layout.yaxis.title.text == "Revenue (₹)"

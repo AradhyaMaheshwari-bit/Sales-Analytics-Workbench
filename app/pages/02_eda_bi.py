@@ -11,7 +11,12 @@ import streamlit as st
 
 from app.components.filters import apply_filters, render_sidebar_filters
 from app.components.kpi_cards import create_kpi_data, render_kpi_row
-from app.services.eda import compute_kpis, run_eda_pipeline
+from app.services.eda import (
+    aggregate_monthly_trend,
+    compute_correlation_matrix,
+    compute_kpis,
+    run_eda_pipeline,
+)
 from app.utils.charts import ChartFactory
 
 # Initialize ChartFactory
@@ -40,6 +45,11 @@ def _check_analysis_ready() -> bool:
     return True
 
 
+def _missing_columns(df: pd.DataFrame, *columns: str) -> list[str]:
+    """Return the subset of *columns* absent from *df* (FR-11 AC-4: never crash)."""
+    return [col for col in columns if col not in df.columns]
+
+
 def _render_kpi_section() -> None:
     """Render KPI cards in a row at the top of the dashboard."""
     if not _check_data_loaded():
@@ -66,45 +76,60 @@ def _render_chart_grid() -> None:
     st.subheader("Interactive Charts")
 
     # 1. Revenue by Category (Bar)
-    fig1 = chart_factory.bar_chart(
-        df,
-        x="Category",
-        y="Total_Sales",
-        title="Revenue by Category",
-        yaxis_title="Revenue (₹)",
-        y_is_currency=True,
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+    if missing := _missing_columns(df, "Category"):
+        st.info(f"Cannot render 'Revenue by Category' — missing columns: {missing}")
+    else:
+        fig1 = chart_factory.bar_chart(
+            df,
+            x="Category",
+            y="Total_Sales",
+            title="Revenue by Category",
+            yaxis_title="Revenue (₹)",
+            y_is_currency=True,
+        )
+        st.plotly_chart(fig1, use_container_width=True)
 
     # 2. Monthly Revenue Trend (Line)
-    fig2 = chart_factory.line_chart(
-        df,
-        x="Month",
-        y="Revenue",
-        title="Monthly Revenue Trend",
-        yaxis_title="Revenue (₹)",
-        y_is_currency=True,
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+    monthly_trend = aggregate_monthly_trend(df)
+    if monthly_trend.empty:
+        st.info("Monthly Revenue Trend unavailable — no parseable Order_Date values.")
+    else:
+        fig2 = chart_factory.line_chart(
+            monthly_trend,
+            x="Month",
+            y="Total_Sales",
+            title="Monthly Revenue Trend",
+            yaxis_title="Revenue (₹)",
+            y_is_currency=True,
+        )
+        st.plotly_chart(fig2, use_container_width=True)
 
     # 3. Revenue by City (Horizontal Bar)
-    fig3 = chart_factory.bar_chart(
-        df,
-        x="City",
-        y="Total_Sales",
-        title="Revenue by City",
-        xaxis_title="City",
-        yaxis_title="Revenue (₹)",
-        y_is_currency=True,
-        orientation="h",
-    )
-    st.plotly_chart(fig3, use_container_width=True)
+    if missing := _missing_columns(df, "City"):
+        st.info(f"Cannot render 'Revenue by City' — missing columns: {missing}")
+    else:
+        fig3 = chart_factory.bar_chart(
+            df,
+            x="City",
+            y="Total_Sales",
+            title="Revenue by City",
+            xaxis_title="City",
+            yaxis_title="Revenue (₹)",
+            y_is_currency=True,
+            orientation="h",
+        )
+        st.plotly_chart(fig3, use_container_width=True)
 
     # 4. Correlation Matrix (Heatmap)
-    corr_matrix = chart_factory.compute_correlation_heatmap(
-        st.session_state["active_df"]
-    )
-    st.plotly_chart(corr_matrix, use_container_width=True)
+    corr_matrix = compute_correlation_matrix(df)
+    if corr_matrix.empty:
+        st.info("Correlation matrix requires at least two numeric columns.")
+    else:
+        fig4 = chart_factory.correlation_heatmap(
+            corr_matrix,
+            title="Correlation Matrix",
+        )
+        st.plotly_chart(fig4, use_container_width=True)
 
 
 def _render_filtering_section() -> None:

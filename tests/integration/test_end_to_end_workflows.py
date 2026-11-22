@@ -234,13 +234,18 @@ def test_continuity_across_layers(sample_demo_file: Path) -> None:
 def test_analysis_pages_render_with_injected_session_state(
     sample_demo_file: Path,
 ) -> None:
-    """A-1: Headless AppTest smoke verification for pages 03 and 05 with injected state."""
+    """A-1: Headless AppTest smoke verification for pages 02, 03, and 05 with injected state."""
     df = pd.read_excel(sample_demo_file, engine="openpyxl")
     cleaned_df, _ = clean_dataframe(df)
     mgr = DatabaseManager()
     conn = mgr.rebuild(cleaned_df)
 
     app_root = Path(__file__).resolve().parents[2] / "app"
+
+    page2 = AppTest.from_file(str(app_root / "pages/02_eda_bi.py"))
+    page2.session_state["active_df"] = cleaned_df
+    page2.run(timeout=10)
+    assert not page2.exception
 
     page3 = AppTest.from_file(str(app_root / "pages/03_sql_analysis.py"))
     page3.session_state["active_df"] = cleaned_df
@@ -280,3 +285,44 @@ def test_statistics_page_shows_empty_state() -> None:
     page5.run(timeout=10)
     assert not page5.exception
     assert any("No dataset loaded" in i.value for i in page5.info)
+
+
+@pytest.mark.skipif(AppTest is None, reason="Streamlit AppTest not available")
+def test_eda_page_renders_monthly_trend_with_canonical_dataset(
+    sample_demo_file: Path,
+) -> None:
+    """A-4: Module 2 renders the monthly trend chart from the canonical dataset schema.
+
+    Regression for the crash where ``line_chart`` received the raw dataset and
+    was asked for a ``Month`` column that only exists on the aggregated frame.
+    """
+    df = pd.read_excel(sample_demo_file, engine="openpyxl")
+    cleaned_df, _ = clean_dataframe(df)
+    assert "Month" not in cleaned_df.columns
+
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    page2 = AppTest.from_file(str(app_root / "pages/02_eda_bi.py"))
+    page2.session_state["active_df"] = cleaned_df
+    page2.run(timeout=10)
+    assert not page2.exception
+    # The monthly-trend chart (and the rest of the grid) rendered without the
+    # missing-column fallback, proving a Month/Total_Sales frame was supplied.
+    assert not any("Monthly Revenue Trend unavailable" in i.value for i in page2.info)
+
+
+@pytest.mark.skipif(AppTest is None, reason="Streamlit AppTest not available")
+def test_eda_page_degrades_gracefully_without_optional_columns() -> None:
+    """A-5: Module 2 shows messages instead of crashing when optional columns are absent (FR-11 AC-4)."""
+    partial_df = pd.DataFrame(
+        {"Order_Date": ["2024-01-01", "2024-02-01"], "Total_Sales": [100.0, 200.0]}
+    )
+
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    page2 = AppTest.from_file(str(app_root / "pages/02_eda_bi.py"))
+    page2.session_state["active_df"] = partial_df
+    page2.run(timeout=10)
+
+    assert not page2.exception
+    infos = [i.value for i in page2.info]
+    assert any("Revenue by Category" in msg for msg in infos)
+    assert any("Revenue by City" in msg for msg in infos)

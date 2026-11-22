@@ -66,7 +66,9 @@ def _render_sidebar_identity() -> None:
 def _render_landing() -> None:
     """Render the landing page content."""
     st.title("Sales Analytics Workbench")
-    st.subheader("Unified internship demonstration — SDLC Phase 4, Increment 1A")
+    st.subheader(
+        "Unified internship demonstration — SDLC Phase 4, Increment 6 (Integration & Final QA)"
+    )
 
     st.markdown("""
         This workbench demonstrates five analytical modules built during the ApexPlanet
@@ -88,7 +90,7 @@ def _render_landing() -> None:
         "dataset is active."
     )
 
-    logger.info("Application launched — Increment 1A shell")
+    logger.info("Application launched — Increment 6")
 
 
 def main() -> None:

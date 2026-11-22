@@ -242,6 +242,35 @@ def test_aggregate_monthly_trend():
     assert result.iloc[1]["Total_Sales"] == 450
 
 
+def test_aggregate_monthly_trend_uses_canonical_dataset_schema():
+    """Regression test: the canonical 12-column dataset aggregates to a
+    Month/Total_Sales frame consumable by the Module 2 monthly trend chart."""
+    from scripts.generate_demo_data import generate_demo_dataframe
+
+    df = generate_demo_dataframe()
+    result = aggregate_monthly_trend(df, "Order_Date", "Total_Sales")
+
+    assert list(result.columns) == ["Month", "Total_Sales"]
+    assert not result.empty
+    assert result["Month"].is_monotonic_increasing
+
+    # Each monthly bucket must equal the sum of its constituent raw rows.
+    expected = (
+        df.assign(_month=df["Order_Date"].str.slice(0, 7))
+        .groupby("_month")["Total_Sales"]
+        .sum()
+        .reset_index()
+        .rename(columns={"_month": "Month"})
+    )
+    merged = result.merge(expected, on="Month", suffixes=("_actual", "_expected"))
+    assert len(merged) == len(result)
+    for _, row in merged.iterrows():
+        assert row["Total_Sales_actual"] == row["Total_Sales_expected"]
+
+    # Grand total across all months equals total revenue of the dataset.
+    assert result["Total_Sales"].sum() == pytest.approx(df["Total_Sales"].sum())
+
+
 def test_aggregate_by_gender():
     df = pd.DataFrame(
         {
