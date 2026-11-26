@@ -258,6 +258,100 @@ class TestProgressHandler:
 
 
 # ---------------------------------------------------------------------------
+# Per-statement budget reset (timeout raised from 2s to 5s)
+# ---------------------------------------------------------------------------
+
+
+class TestPerStatementBudgetReset:
+    """Budgets reset per statement so consecutive queries inherit no stale state."""
+
+    # Authorized (reads only ``sales``) but CPU-heavy: a 7-way self cross-join.
+    _HEAVY_SQL = (
+        "SELECT COUNT(*) FROM sales a, sales b, sales c, sales d, "
+        "sales e, sales f, sales g"
+    )
+
+    @staticmethod
+    def _make_conn(rows: int = 8) -> sqlite3.Connection:
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.execute("CREATE TABLE sales (x INTEGER)")
+        conn.executemany("INSERT INTO sales VALUES (?)", [(i,) for i in range(rows)])
+        return conn
+
+    def test_default_wall_clock_is_five_seconds(self):
+        """The default wall-clock budget is 5 seconds (raised from 2)."""
+        import inspect
+
+        sig = inspect.signature(attach_security_controls)
+        assert sig.parameters["max_seconds"].default == 5.0
+
+    def test_default_opcode_limit_is_one_million(self):
+        """The opcode limit remains exactly 1,000,000."""
+        import inspect
+
+        sig = inspect.signature(attach_security_controls)
+        assert sig.parameters["max_opcodes"].default == 1_000_000
+
+    def test_opcode_budget_resets_between_consecutive_queries(self):
+        """After an opcode-limited query is aborted, a later query gets a fresh budget.
+
+        With the old cumulative counter the aborted query exhausted the budget,
+        so the follow-up light query would also be interrupted. A successful
+        follow-up proves the per-statement reset.
+        """
+        conn = self._make_conn()
+        # One heavy query costs well over 1,000,000 opcodes, so this budget
+        # aborts it while leaving plenty of headroom for the light follow-up.
+        attach_security_controls(conn, max_seconds=3600.0, max_opcodes=1_000_000)
+        try:
+            with pytest.raises(sqlite3.OperationalError):
+                conn.execute(self._HEAVY_SQL).fetchone()
+            # Fresh per-statement budget: the light query must succeed.
+            assert conn.execute("SELECT COUNT(*) FROM sales").fetchone() == (8,)
+        finally:
+            conn.close()
+
+    def test_wall_clock_budget_resets_between_consecutive_queries(self):
+        """Idle time before a query does not count against its wall-clock budget."""
+        import time
+
+        conn = self._make_conn()
+        attach_security_controls(conn, max_seconds=0.5, max_opcodes=10**12)
+        try:
+            # Would be interrupted if the window started at attach time.
+            time.sleep(0.6)
+            assert conn.execute("SELECT COUNT(*) FROM sales").fetchone() == (8,)
+        finally:
+            conn.close()
+
+    def test_wall_clock_limit_interrupts_genuine_runaway(self):
+        """A long-running authorized query is aborted by the wall-clock limit.
+
+        A 16-row, 7-way self cross-join (16^7 ~ 2.7e8 rows) reliably runs far
+        longer than the 0.3 s budget on any reasonable machine.
+        """
+        conn = self._make_conn(rows=16)
+        attach_security_controls(conn, max_seconds=0.3, max_opcodes=10**12)
+        try:
+            with pytest.raises(sqlite3.OperationalError) as exc:
+                conn.execute(self._HEAVY_SQL).fetchone()
+            assert "interrupt" in str(exc.value).lower()
+        finally:
+            conn.close()
+
+    def test_opcode_limit_interrupts_genuine_runaway(self):
+        """A runaway authorized query is aborted by the opcode budget."""
+        conn = self._make_conn()
+        attach_security_controls(conn, max_seconds=3600.0, max_opcodes=100_000)
+        try:
+            with pytest.raises(sqlite3.OperationalError) as exc:
+                conn.execute(self._HEAVY_SQL).fetchone()
+            assert "interrupt" in str(exc.value).lower()
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Integration with database manager lifecycle
 # ---------------------------------------------------------------------------
 

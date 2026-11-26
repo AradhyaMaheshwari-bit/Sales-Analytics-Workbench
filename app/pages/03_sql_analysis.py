@@ -108,7 +108,7 @@ else:
         **Security Policy:**
         - Only SELECT queries are permitted.
         - Only the `sales` table is accessible.
-        - Maximum execution time: 2 seconds.
+        - Maximum execution time: 5 seconds.
         - Maximum rows returned: 500.
         """)
 

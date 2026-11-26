@@ -316,7 +316,7 @@ def execute_custom_query(
         if "not authorized" in error_str.lower():
             msg = "Security Violation: Only SELECT queries on the `sales` table are permitted."
         elif "interrupted" in error_str.lower():
-            msg = "Query exceeded the computational time limit (2 seconds, 1,000,000 opcodes). Simplify your query or add a WHERE clause."
+            msg = "Query exceeded the computational time limit (5 seconds, 1,000,000 opcodes). Simplify your query or add a WHERE clause."
         else:
             msg = f"Query failed: {error_str}"
         return QueryResult(success=False, error_message=msg)

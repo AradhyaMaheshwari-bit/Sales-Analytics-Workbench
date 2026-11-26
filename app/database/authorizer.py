@@ -12,9 +12,11 @@ Design (SDD-DB-SQL §4):
 - Restricts SQL functions to an approved safe allowlist.
 - Disables SQLite extension loading.
 - Enforces execution limits using ``set_progress_handler()``:
-  - Maximum wall-clock execution time: 2 seconds.
+  - Maximum wall-clock execution time: 5 seconds.
   - Maximum instruction budget: 1,000,000 SQLite VM opcodes.
   - Uses monotonic elapsed-time measurement and an independent opcode counter.
+  - Budgets reset per statement via ``set_trace_callback()`` so consecutive
+    queries each receive a fresh time window and opcode allowance.
 - Keeps the security policy maintainable and independently testable.
 """
 
@@ -94,7 +96,7 @@ def make_authorizer_callback():
 
 def attach_security_controls(
     conn: sqlite3.Connection,
-    max_seconds: float = 2.0,
+    max_seconds: float = 5.0,
     max_opcodes: int = 1_000_000,
     opcode_chunk: int = 1000,
 ) -> None:
@@ -102,7 +104,7 @@ def attach_security_controls(
 
     Args:
         conn: The SQLite connection instance.
-        max_seconds: Maximum wall-clock execution time in seconds (default 2.0).
+        max_seconds: Maximum wall-clock execution time in seconds (default 5.0).
         max_opcodes: Maximum virtual machine opcode budget (default 1,000,000).
         opcode_chunk: Frequency of opcode progress handler invocations.
     """
@@ -112,23 +114,32 @@ def attach_security_controls(
     # 2. Disable extension loading (NFR-S-02)
     conn.enable_load_extension(False)
 
-    # 3. Set up progress handler for timeout and opcode budget enforcement
-    start_time = time.monotonic()
-    opcodes_executed = 0
+    # 3. Per-statement budget state. Reset on every statement by the trace
+    #    callback so each query gets its own 5-second window and 1,000,000
+    #    opcode allowance instead of inheriting state from earlier queries.
+    budget: dict[str, float | int] = {
+        "start_time": time.monotonic(),
+        "opcodes_executed": 0,
+    }
+
+    def reset_budget(_sql: str) -> None:
+        """Trace callback: fired once before each statement is prepared."""
+        budget["start_time"] = time.monotonic()
+        budget["opcodes_executed"] = 0
 
     def progress_handler() -> int:
         """Progress handler invoked every N opcodes by SQLite."""
-        nonlocal opcodes_executed
-        opcodes_executed += opcode_chunk
+        budget["opcodes_executed"] = int(budget["opcodes_executed"]) + opcode_chunk
 
         # Check opcode budget limit
-        if opcodes_executed >= max_opcodes:
+        if budget["opcodes_executed"] >= max_opcodes:
             return 1  # Non-zero return aborts query with OperationalError: interrupted
 
         # Check wall-clock time limit
-        if (time.monotonic() - start_time) >= max_seconds:
+        if (time.monotonic() - float(budget["start_time"])) >= max_seconds:
             return 1  # Non-zero return aborts query with OperationalError: interrupted
 
         return 0
 
+    conn.set_trace_callback(reset_budget)
     conn.set_progress_handler(progress_handler, opcode_chunk)
